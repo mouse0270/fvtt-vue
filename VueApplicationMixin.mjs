@@ -1,5 +1,7 @@
 import { createApp, reactive } from 'vue';
 
+export const VueApplicationMixinVersion = '0.0.2';
+
 /**
  * A mixin class that extends a base application with Vue.js functionality.
  * @template {typeof BaseApplication} BaseApplication - The base application class to extend.
