@@ -1,4 +1,4 @@
-import { createApp } from 'vue';
+import { createApp, reactive } from 'vue';
 
 /**
  * A mixin class that extends a base application with Vue.js functionality.
@@ -6,6 +6,12 @@ import { createApp } from 'vue';
  */
 export function VueApplicationMixin(BaseApplication) {
 	class VueApplication extends BaseApplication {
+		/**
+		 * Indicates whether the application is in debug mode.
+		 * @type {boolean}
+		 */
+		static DEBUG = false;
+
 		/**
 		 * The parts of the Vue application.
 		 * @type {Object<string, *>}
@@ -31,6 +37,12 @@ export function VueApplicationMixin(BaseApplication) {
 		 * @type {Object<string, Vue>}
 		 */
 		#instances = {};
+
+		/**
+		 * The private containers for Vue instances.
+		 * @type {Object<string, Object>}
+		 */
+		#props = {};
 
 		/**
 		 * Configure the render options for the Vue application.
@@ -59,7 +71,7 @@ export function VueApplicationMixin(BaseApplication) {
 				for (const template of partTemplates) allTemplates.add(template);
 			}
 
-			console.log(`VueApplicationMixin | Retrieved Vue Parts |`, allTemplates);
+			if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _preFirstRender | Retrieved Vue Parts |`, allTemplates);
 		}
 
 		/**
@@ -70,22 +82,36 @@ export function VueApplicationMixin(BaseApplication) {
 		 */
 		async _renderHTML(context, options) {
 			const rendered = {};
+			if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _renderHTML |`, context, options);
 			for (const [key, part] of Object.entries(this.constructor.PARTS)) {
 				if (!part) {
 					ui.notifications.warn(`Part "${key}" is not a supported template part for ${this.constructor.name}`);
 					continue;
 				}
 
-				// Get the Vue Instance or Component
-				this.#instances[part.id] = await (part?.app ?? part?.component ?? part?.template);
-				// If not a Vue Instance, create one
-				if (typeof this.#instances[part.id]?.mount !== 'function') this.#instances[part.id] = createApp(this.#instances[part.id]);
-				console.log(`VueApplicationMixin | Vue Instance ${part.id} |`, this.#instances[part.id])
+				// If part is not in options.parts, skip it
+				if (!options.parts.includes(key)) continue;
+				
+				// If instance already exists and force is true, unmount it
+				if (this.#instances[part.id] && options?.force === true) this.#instances[part.id].unmount();
+
+				// Get the Vue Instance for the Part if it doesn't exist or force is true
+				if (!this.#instances[part.id] || options?.force === true) {
+					console.log(`VueApplicationMixin | _renderHTML | Setting Up Vue Instance ${part.id} |`);
+					// Get the Vue Instance for the Part
+					this.#instances[part.id] = await (part?.app ?? part?.component ?? part?.template);
+					// Get the props for the Part using the options or the part props
+					this.#props[part.id] = reactive(options?.props ?? part?.props ?? {});
+
+					// If not a Vue Instance, create one
+					if (typeof this.#instances[part.id]?.mount !== 'function') this.#instances[part.id] = createApp(this.#instances[part.id], this.#props[part.id]);
+				}
+				if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _renderHTML | Vue Instance ${part.id} |`, this.#instances[part.id], this.#props[part.id])
 
 				// Add Vue Instance to Rendered Object
 				rendered[key] = this.#instances[part.id]
 			}
-			console.log(`VueApplicationMixin | Vue Instances |`, rendered);
+			if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _renderHTML | Vue Instances |`, rendered);
 			return rendered;
 		}
 
@@ -96,14 +122,24 @@ export function VueApplicationMixin(BaseApplication) {
 		 * @param {Object} options - The render options.
 		 */
 		_replaceHTML(result, content, options) {
+			if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML |`, result, content, options);
 			for (const [key, part] of Object.entries(this.constructor.PARTS)) {
 				const target = content.querySelector(`[data-application-part="${key}"]`);
 
+				// If part is not in options.parts, skip it
+				if (!options.parts.includes(key)) continue;
+
 				// Since Vue Components shouldnt be replaced, warn the user
 				if (target && (options?.force ?? false) === false) {
-					ui.notifications.warn(`Part "${key}" is already rendered for ${this.constructor.name} using Vue. It is not recommended to replace the Vue Component.`);
+					//foundry.utils.mergeObject(this.#props[part.id], options?.props ?? {}, { inplace: true, insertKeys: true});
+					this.#props[part.id].title = options?.props?.title ?? this.#props[part.id].title;
+					if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Update Vue Part |`, target, part.id, this.#instances[part.id], this.#props[part.id]);
+					// Force Component to Update
+					//this.#instances[part.id].forceUpdate();
+					//this.#props[part.id] = options?.props ?? this.#props[part.id];
+					//ui.notifications.warn(`Part "${key}" is already rendered for ${this.constructor.name} using Vue. It is not recommended to replace the Vue Component.`);
 					continue;
-				} 
+				}
 				// TODO: Add a way to update the Vue Instance with new Data
 				// ?? Maybe using a method like this.#instances[part.id].update(data)
 				// ?? where data is options.data or something similar??
@@ -116,6 +152,8 @@ export function VueApplicationMixin(BaseApplication) {
 
 				// Mount the Vue Instance
 				this.#instances[part.id].mount(content.querySelector(`[data-application-part="${key}"]`));
+
+				if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Mount Vue Part |`, part.id, this.#instances[part.id], this.#props[part.id]);
 			}
 		}
 
@@ -139,8 +177,8 @@ export function VueApplicationMixin(BaseApplication) {
 				}
 			// Not really needed, but figured it would be nice to provide instead of having an error in the console if someone injecting one of the options into a component
 			}else{
-				vueElement.provide('onSubmit', () => console.log("VueApplicationMixin | onSubmit | No forms found for part", partId));
-				vueElement.provide('onChange', () => console.log("VueApplicationMixin | onChange | No forms found for part", partId));
+				vueElement.provide('onSubmit', () => console.warn("VueApplicationMixin | onSubmit | No forms found for part", partId));
+				vueElement.provide('onChange', () => console.warn("VueApplicationMixin | onChange | No forms found for part", partId));
 			}
 		}
 
