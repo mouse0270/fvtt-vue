@@ -1,6 +1,6 @@
 import { createApp, h, reactive } from 'vue';
 
-export const VueApplicationMixinVersion = '0.0.3';
+export const VueApplicationMixinVersion = '0.0.4';
 
 /**
  * A mixin class that extends a base application with Vue.js functionality.
@@ -39,7 +39,6 @@ export function VueApplicationMixin(BaseApplication) {
 		 * @type {Object<string, Vue>}
 		 */
 		#instance = null;
-		#instances = {};
 
 		/**
 		 * The private containers for Vue instances.
@@ -66,17 +65,6 @@ export function VueApplicationMixin(BaseApplication) {
 		// ?? Maybe this function should be removed or updated to do something else?
 		async _preFirstRender(context, options) {
 			await super._preFirstRender(context, options);
-			const allTemplates = new Set();
-			for (const part of Object.values(this.constructor.PARTS)) {
-				const partTemplates = [
-					...(part.templates ?? [part.template]),
-					...(part.components ?? [part.component]),
-					...[part?.app]
-				].filter(p => p !== undefined);
-				for (const template of partTemplates) allTemplates.add(template);
-			}
-
-			if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _preFirstRender | Retrieved Vue Parts |`, allTemplates);
 		}
 
 		/**
@@ -108,18 +96,6 @@ export function VueApplicationMixin(BaseApplication) {
 				// Get the Part and add it to the rendered object
 				rendered[partId] = await (part?.app ?? part?.component ?? part?.template);
 			}
-
-			/*this.#instance = createApp({
-				render: () => Object.entries(rendered).map(([key, value]) => 
-					h('div', {
-						// Add a data attribute dynamically
-						'data-application-part': key,
-					}, [
-						// Insert the component inside this div along with the props for that component
-						h(value, { ...this.#props[key]}) 
-					])
-				)
-			});*/
 
 			if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _renderHTML | Vue Instances |`, this.#instance);
 			return rendered;
@@ -156,46 +132,15 @@ export function VueApplicationMixin(BaseApplication) {
 				// Mount the Vue Instance
 				this.#instance.mount(content);
 			}
-
-			/*this.#instance.mount(content);
-			/*for (const [key, part] of Object.entries(this.constructor.PARTS)) {
-				const target = content.querySelector(`[data-application-part="${key}"]`);
-
-				// If part is not in options.parts, skip it
-				if (!options.parts.includes(key)) continue;
-
-				// Since Vue Components shouldnt be replaced, warn the user
-				if (target && (options?.force ?? false) === false) {
-					foundry.utils.mergeObject(this.#props[part.id], options?.props ?? {}, { inplace: true, insertKeys: true});
-					//this.#props[part.id].title = options?.props?.title ?? this.#props[part.id].title;
-					if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Update Vue Part |`, target, part.id, this.#instances[part.id], this.#props[part.id]);
-					continue;
-				}
-				// TODO: Add a way to update the Vue Instance with new Data
-				// ?? Maybe using a method like this.#instances[part.id].update(data)
-				// ?? where data is options.data or something similar??
-
-				// Attach Container for Part if it doesn't exist
-				if (!target) content.insertAdjacentHTML('beforeend', `<div data-application-part="${key}">$</div>`);
-
-				// Attach Part Listeners
-				this._attachPartListeners(content, part.id, this.#instances[part.id], options);
-
-				// Mount the Vue Instance
-				this.#instances[part.id].mount(content.querySelector(`[data-application-part="${key}"]`));
-
-				if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Mount Vue Part |`, part.id, this.#instances[part.id], this.#props[part.id]);
-			}*/
 		}
 
 
+		
 		/**
-		 * Attaches form submission and change event listeners to the specified Vue element for a given part.
+		 * Attaches event listeners to the Vue Instance.
 		 *
-		 * @param {HTMLElement} content - The content of the part.
-		 * @param {string} partId - The ID of the part.
-		 * @param {Vue} vueElement - The Vue element to attach the listeners to.
-		 * @param {Object} options - Additional options for attaching the listeners.
+		 * @param {HTMLElement} content - The content element.
+		 * @param {Object} options - The options object.
 		 */
 		_attachPartListeners(content, options) {
 			// Attach event listeners to the Vue Instance
