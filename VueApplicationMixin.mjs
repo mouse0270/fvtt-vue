@@ -112,6 +112,7 @@ export function VueApplicationMixin(BaseApplication) {
 
 			// Check if the Vue Instance exists, if not create it
 			if (!this.#instance) {
+				const Instance = this;
 				this.#instance = createApp({
 					render: () => Object.entries(result).map(([key, value]) =>
 						h('div', {
@@ -122,7 +123,12 @@ export function VueApplicationMixin(BaseApplication) {
 							h(value, { ...this.#props[key] })
 						])
 					)
-				});
+				}).mixin({
+					updated() {
+						// Resize the application window after the Vue Instance is updated
+						if (Instance?.options?.position?.height === "auto") Instance.setPosition({ height: "auto" });
+					}
+				});;
 
 				// Attach Part Listeners
 				this._attachPartListeners(content, options);
