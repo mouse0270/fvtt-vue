@@ -1,6 +1,6 @@
 import { createApp, h, reactive } from 'vue';
 
-export const VueApplicationMixinVersion = '0.0.4';
+export const VueApplicationMixinVersion = '0.0.5';
 
 /**
  * A mixin class that extends a base application with Vue.js functionality.
@@ -130,10 +130,21 @@ export function VueApplicationMixin(BaseApplication) {
 					}
 				});;
 
+				// Attach .use() plugins to the Vue Instance
+				for (const partId of options.parts) {
+					const part = this.constructor.PARTS[partId];
+					if (part?.use) {
+						for (const [key, plugin] of Object.entries(part.use)) {
+							if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Mount Vue Instance | Use Plugin |`, key, plugin);
+							this.#instance.use(plugin.plugin, plugin?.options ?? {});
+						}
+					}
+				}
+
 				// Attach Part Listeners
 				this._attachPartListeners(content, options);
 
-				console.log(`VueApplicationMixin | _replaceHTML | Mount Vue Instance |`, this.#instance);
+				if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Mount Vue Instance |`, this.#instance);
 
 				// Mount the Vue Instance
 				this.#instance.mount(content);
