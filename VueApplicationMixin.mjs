@@ -15,6 +15,13 @@ export function VueApplicationMixin(BaseApplication) {
 		static DEBUG = false;
 
 		/**
+		 * Indicates whether the application should be attached to the shadow dom.
+		 * @type {boolean}
+		 */
+		static SHADOWROOT = false;
+
+
+		/**
 		 * The parts of the Vue application.
 		 * @type {Object<string, *>}
 		 */
@@ -125,10 +132,17 @@ export function VueApplicationMixin(BaseApplication) {
 					)
 				}).mixin({
 					updated() {
+						if (Instance.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Vue Instance Updated |`, this, Instance?.options);
+
 						// Resize the application window after the Vue Instance is updated
 						if (Instance?.options?.position?.height === "auto") Instance.setPosition({ height: "auto" });
+
+						// Call the render method when the Vue Instance is updated
+						// -- This will call FoundryVTTs Hooks related to rendering when Vue is updated
+						// -- Useful for when other modules listen for rendering events to inject HTML
+						Instance.render();
 					}
-				});;
+				});
 
 				// Attach .use() plugins to the Vue Instance
 				for (const partId of options.parts) {
@@ -146,8 +160,25 @@ export function VueApplicationMixin(BaseApplication) {
 
 				if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Mount Vue Instance |`, this.#instance);
 
+				// Attach Shadow Root if Enabled
+				if (this.constructor.SHADOWROOT) content.attachShadow({ mode: 'open' });
+				let root = this.constructor.SHADOWROOT ? content.shadowRoot : content;
+
+				// If Shadow Root is enabled, attach Styles to the Shadow Root
+				if (this.constructor.SHADOWROOT) {
+					const link = document.createElement('link');
+					link.rel = 'stylesheet';
+					link.href = '/modules/fvtt-vue-vite/dist/style.css';
+					content.shadowRoot.appendChild(link);
+
+					const mountPoint = document.createElement('div');
+					root.appendChild(mountPoint);
+					root = mountPoint;
+				}
+
 				// Mount the Vue Instance
-				this.#instance.mount(content);
+				if (this.constructor.DEBUG) console.log(`VueApplicationMixin | _replaceHTML | Root |`, root);
+				this.#instance.mount(root);
 			}
 		}
 
