@@ -1,6 +1,6 @@
 import { createApp, h, reactive } from 'vue';
 
-export const VueApplicationMixinVersion = '0.0.5';
+export const VueApplicationMixinVersion = '0.0.6';
 
 /**
  * A mixin class that extends a base application with Vue.js functionality.
